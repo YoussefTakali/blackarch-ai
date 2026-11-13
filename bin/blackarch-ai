@@ -1,0 +1,10 @@
+#!/bin/sh
+# Launch BlackArch AI. On the host it runs inside the BlackArch toolbox
+# (override with BLACKARCH_AI_TOOLBOX); inside a container it runs directly.
+set -e
+ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+EXE="$ROOT/.venv/bin/blackarch-ai"
+if [ -e /run/.containerenv ] || [ -e /.dockerenv ]; then
+    exec "$EXE" "$@"
+fi
+exec toolbox run -c "${BLACKARCH_AI_TOOLBOX:-blackarch}" "$EXE" "$@"

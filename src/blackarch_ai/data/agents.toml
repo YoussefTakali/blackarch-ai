@@ -1,0 +1,114 @@
+# Agent domains and the BlackArch package groups ("categories") each one owns.
+#
+# Every blackarch-* group belongs to exactly one agent, or to [shared].
+# `blackarch-ai agents list` verifies this against the groups pacman reports,
+# so a newly added upstream category shows up as "unassigned" instead of
+# silently disappearing.
+#
+# `keywords` lets an agent claim tools from any category whose name or
+# description matches (used by the Cloud agent, which has no BlackArch group).
+#
+# `max_permission` is the most intrusive kind of step the agent may propose:
+#   passive     — analysis of data already collected; no contact with targets
+#   low         — light, standard interaction (e.g. a single service probe)
+#   intrusive   — active testing that may affect targets or raise alerts
+#   high_impact — could disrupt services or change data/systems
+# Steps above an agent's ceiling are flagged; intrusive and high_impact steps
+# always need explicit user approval.
+
+[shared]
+description = "General-purpose utilities available to every agent."
+categories = ["misc"]
+
+[policy]
+# Tools from these categories are always classified high-impact and can
+# never run without explicit, per-operation user approval.
+high_impact_categories = ["backdoor", "keylogger", "anti-forensic", "dos"]
+
+[[agent]]
+id = "recon"
+max_permission = "low"
+name = "Recon & OSINT"
+description = "Passive and active reconnaissance, OSINT, fingerprinting, social-engineering surface mapping."
+categories = ["recon", "reocn", "social", "fingerprint"]
+
+[[agent]]
+id = "network"
+max_permission = "intrusive"
+name = "Network"
+description = "Host/service discovery, topology, traffic analysis, tunnelling, proxies, VoIP, availability testing."
+categories = ["networking", "scanner", "sniffer", "spoof", "tunnel", "proxy", "dos", "voip"]
+
+[[agent]]
+id = "web"
+max_permission = "intrusive"
+name = "Web Application"
+description = "HTTP services, web apps, APIs, authn/authz, injection, fuzzing, database assessment."
+categories = ["webapp", "fuzzer", "database"]
+
+[[agent]]
+id = "wireless"
+max_permission = "intrusive"
+name = "Wireless & RF"
+description = "Wi-Fi, Bluetooth, SDR/radio, NFC/RFID, drones and automotive (CAN) security."
+categories = ["wireless", "bluetooth", "radio", "nfc", "drone", "automobile"]
+
+[[agent]]
+id = "system"
+max_permission = "intrusive"
+name = "System"
+description = "Linux and Windows host assessment, configuration, permissions and hardening review."
+categories = ["windows", "config"]
+
+[[agent]]
+id = "exploitation"
+max_permission = "high_impact"
+name = "Exploitation"
+description = "Controlled exploitation and post-exploitation validation within an authorized scope."
+categories = ["exploitation", "backdoor", "keylogger", "automation"]
+
+[[agent]]
+id = "credentials"
+max_permission = "intrusive"
+name = "Credentials & Crypto"
+description = "Password auditing, hash cracking, cryptographic analysis, wordlists and steganography."
+categories = ["cracker", "crypto", "wordlist", "gpu", "stego"]
+
+[[agent]]
+id = "reversing"
+max_permission = "low"
+name = "Reverse Engineering & Hardware"
+description = "Binary analysis, disassembly, debugging, (un)packing, malware, firmware, hardware and mobile apps."
+categories = [
+    "reversing", "binary", "disassembler", "decompiler", "debugger",
+    "packer", "unpacker", "malware", "firmware", "hardware", "mobile",
+]
+
+[[agent]]
+id = "forensics"
+max_permission = "passive"
+name = "Forensics & Defense"
+description = "Evidence and log analysis, incident investigation, IDS, honeypots and defensive tooling."
+categories = ["forensic", "anti-forensic", "defensive", "ids", "honeypot"]
+
+[[agent]]
+id = "vulnintel"
+max_permission = "passive"
+name = "Vulnerability Intelligence"
+description = "CVE research, version correlation, code audit, threat modelling and AI/LLM security."
+categories = ["code-audit", "threat-model", "ai"]
+
+[[agent]]
+id = "cloud"
+max_permission = "low"
+name = "Cloud Security"
+description = "Cloud configuration, IAM and posture review (AWS, Azure, GCP, Kubernetes)."
+categories = []
+keywords = ["aws", "azure", "gcp", "google cloud", "kubernetes", "k8s", "s3 bucket", "cloud", "terraform", "iac"]
+
+[[agent]]
+id = "reporting"
+max_permission = "passive"
+name = "Reporting"
+description = "Consolidates findings, prioritizes risk, writes remediation and the final report. Uses no tools."
+categories = []

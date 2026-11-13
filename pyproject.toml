@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blackarch-ai"
+version = "0.1.0"
+description = "Local-first, multi-agent security assessment assistant for BlackArch Linux"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "litellm>=1.50",
+    "pydantic>=2.7",
+    "sqlalchemy>=2.0",
+    "prompt_toolkit>=3.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+blackarch-ai = "blackarch_ai.main:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+blackarch_ai = ["data/*.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

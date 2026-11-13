@@ -1,0 +1,842 @@
+# Registered operations: the only commands the execution engine will run.
+#
+# Each operation renders to an argv list (never a shell string); parameter
+# values are type-checked and can't inject arguments. Add your own operations
+# here — including higher-impact ones — following the same shape. Set
+# `permission` honestly: intrusive and high_impact always require approval.
+#
+#   [[operation]]
+#   id = "unique_id"            # a-z, 0-9, _ or -
+#   tool = "pkgname"            # must be installed (checked against the registry)
+#   command = "binary"          # optional; defaults to tool
+#   summary = "what it does"
+#   permission = "passive|low|intrusive|high_impact"
+#   args = ["-fixed", "-flags"]
+#   timeout = 300
+#   [[operation.params]]
+#   name = "ports"; flag = "-p"; type = "string"; default = "top100"
+#   [operation.target]
+#   kind = "host|url|network|any"; flag = null; required = true
+
+# ---------------------------------------------------------------- recon (low/passive)
+
+[[operation]]
+id = "dns-lookup"
+tool = "bind"
+command = "dig"
+summary = "DNS records for a host (A/AAAA/MX/NS/TXT)."
+permission = "low"
+args = ["+nocmd", "+noall", "+answer"]
+[[operation.params]]
+name = "record_type"
+type = "enum"
+choices = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "PTR", "ANY"]
+default = "A"
+description = "DNS record type"
+[operation.target]
+kind = "host"
+required = true
+
+[[operation]]
+id = "whois"
+tool = "whois"
+summary = "WHOIS registration record for a domain or IP."
+permission = "low"
+[operation.target]
+kind = "host"
+required = true
+
+# ---------------------------------------------------------------- network scanning
+
+[[operation]]
+id = "nmap-ping-sweep"
+tool = "nmap"
+summary = "Host discovery (ping sweep), no port scan."
+permission = "low"
+args = ["-sn", "-n", "-T4", "--min-rate", "1000", "--max-retries", "1", "-oN", "-"]
+timeout = 600
+[operation.target]
+kind = "network"
+required = true
+
+[[operation]]
+id = "nmap-service-scan"
+tool = "nmap"
+summary = "TCP service and version detection on selected ports."
+permission = "intrusive"
+args = ["-sV", "--open", "-oN", "-"]
+timeout = 1800
+[[operation.params]]
+name = "ports"
+flag = "-p"
+type = "string"
+default = "1-1000"
+pattern = '^[0-9,\-]+$'
+description = "Port list/range (e.g. 22,80,443 or 1-1000)"
+[[operation.params]]
+name = "timing"
+flag = "-T"
+type = "enum"
+choices = ["0", "1", "2", "3", "4", "5"]
+default = "3"
+description = "nmap timing template"
+[operation.target]
+kind = "network"
+required = true
+
+[[operation]]
+id = "nmap-tcp-connect"
+tool = "nmap"
+summary = "TCP connect scan (no raw sockets, no root needed)."
+permission = "low"
+args = ["-sT", "--open", "-oN", "-"]
+timeout = 1200
+[[operation.params]]
+name = "ports"
+flag = "-p"
+type = "string"
+default = "1-1000"
+pattern = '^[0-9,\-]+$'
+[operation.target]
+kind = "network"
+required = true
+
+# ---------------------------------------------------------------- web
+
+[[operation]]
+id = "whatweb"
+tool = "whatweb"
+summary = "Fingerprint web technologies and server software."
+permission = "low"
+args = ["--color=never", "--no-errors"]
+[[operation.params]]
+name = "aggression"
+flag = "-a"
+type = "enum"
+choices = ["1", "3"]
+default = "1"
+description = "1=passive, 3=aggressive"
+[operation.target]
+kind = "url"
+required = true
+
+[[operation]]
+id = "wafw00f"
+tool = "wafw00f"
+summary = "Detect a web application firewall in front of a site."
+permission = "low"
+args = ["-a"]
+[operation.target]
+kind = "url"
+required = true
+
+[[operation]]
+id = "sslscan"
+tool = "sslscan"
+summary = "Enumerate supported SSL/TLS protocols and ciphers."
+permission = "low"
+args = ["--no-colour"]
+[operation.target]
+kind = "host"
+required = true
+
+[[operation]]
+id = "nikto-scan"
+tool = "nikto"
+summary = "Web server scan for known issues and misconfigurations."
+permission = "intrusive"
+args = ["-ask", "no", "-nointeractive"]
+timeout = 1800
+[[operation.params]]
+name = "host_flag"
+flag = "-h"
+type = "string"
+required = true
+pattern = '^https?://[^\s]+$'
+description = "Target URL (also pass as --target)"
+[operation.target]
+kind = "url"
+required = false
+
+[[operation]]
+id = "gobuster-dir"
+tool = "gobuster"
+summary = "Brute-force web directories/files with a wordlist."
+permission = "intrusive"
+args = ["dir", "--no-color", "-q"]
+timeout = 1800
+[[operation.params]]
+name = "url_flag"
+flag = "-u"
+type = "string"
+required = true
+pattern = '^https?://[^\s]+$'
+description = "Target URL"
+[[operation.params]]
+name = "wordlist"
+flag = "-w"
+type = "string"
+required = true
+description = "Absolute path to a wordlist"
+pattern = '^/[^\s]+$'
+[[operation.params]]
+name = "threads"
+flag = "-t"
+type = "int"
+default = 10
+min = 1
+max = 50
+
+# ---------------------------------------------------------------- recon: subdomains & DNS (projectdiscovery)
+
+[[operation]]
+id = "subfinder-passive"
+tool = "subfinder"
+summary = "Passive subdomain enumeration from public sources (no contact with the target)."
+permission = "passive"
+args = ["-silent"]
+timeout = 600
+[operation.target]
+kind = "host"
+flag = "-d"
+required = true
+
+[[operation]]
+id = "dnsx-resolve"
+tool = "dnsx"
+summary = "Resolve DNS records (A/AAAA/CNAME) for a host via public resolvers."
+permission = "low"
+args = ["-silent", "-a", "-aaaa", "-cname", "-resp"]
+timeout = 300
+[operation.target]
+kind = "host"
+flag = "-l"
+required = true
+
+# ---------------------------------------------------------------- scanning (projectdiscovery)
+
+[[operation]]
+id = "naabu-scan"
+tool = "naabu"
+summary = "Fast TCP port scan of the top ports (hands results to deeper tools)."
+permission = "intrusive"
+args = ["-silent"]
+timeout = 1200
+[[operation.params]]
+name = "top_ports"
+flag = "-top-ports"
+type = "enum"
+choices = ["100", "1000", "full"]
+default = "1000"
+description = "How many top ports to scan (100, 1000, or full = all 65535)"
+[operation.target]
+kind = "host"
+flag = "-host"
+required = true
+
+# ---------------------------------------------------------------- web probing & crawling (projectdiscovery)
+
+[[operation]]
+id = "httpx-probe"
+tool = "httpx"
+command = "httpx-pd"
+summary = "Probe a URL: status code, page title, server and detected technologies."
+permission = "low"
+args = ["-silent", "-no-color", "-status-code", "-title", "-tech-detect", "-web-server"]
+timeout = 300
+[operation.target]
+kind = "url"
+flag = "-u"
+required = true
+
+[[operation]]
+id = "katana-crawl"
+tool = "katana-pd"
+command = "katana"
+summary = "Crawl a web application and list discovered endpoints/URLs."
+permission = "intrusive"
+args = ["-silent", "-no-color"]
+timeout = 1200
+[[operation.params]]
+name = "depth"
+flag = "-depth"
+type = "int"
+default = 2
+min = 1
+max = 5
+description = "Maximum crawl depth"
+[operation.target]
+kind = "url"
+flag = "-u"
+required = true
+
+# ---------------------------------------------------------------- tls
+
+[[operation]]
+id = "testssl"
+tool = "testssl.sh"
+command = "testssl"
+summary = "Thorough TLS/SSL audit: protocols, ciphers, and known vulnerabilities."
+permission = "low"
+args = ["--color", "0", "--quiet"]
+timeout = 1200
+[operation.target]
+kind = "host"
+required = true
+
+# ---------------------------------------------------------------- windows / smb
+
+[[operation]]
+id = "smb-list-shares"
+tool = "smbclient"
+summary = "List SMB shares on a host using a null session."
+permission = "intrusive"
+args = ["-N"]
+[operation.target]
+kind = "host"
+flag = "-L"
+required = true
+
+[[operation]]
+id = "enum4linux-ng"
+tool = "enum4linux-ng"
+summary = "Enumerate SMB/RPC: shares, users, groups, OS and policy (null session)."
+permission = "intrusive"
+args = ["-A"]
+timeout = 900
+[operation.target]
+kind = "host"
+required = true
+
+[[operation]]
+id = "smbmap-enum"
+tool = "smbmap"
+summary = "Enumerate SMB shares and access permissions on a host."
+permission = "intrusive"
+args = []
+timeout = 600
+[operation.target]
+kind = "host"
+flag = "-H"
+required = true
+
+# ---------------------------------------------------------------- vulnerability detection
+
+[[operation]]
+id = "nuclei-scan"
+tool = "nuclei"
+summary = "Scan a web URL for known vulnerabilities, CVEs and misconfigurations."
+permission = "intrusive"
+args = ["-silent", "-nc"]
+timeout = 1800
+[operation.target]
+kind = "url"
+flag = "-u"
+required = true
+
+[[operation]]
+id = "nmap-vuln"
+tool = "nmap"
+summary = "Run nmap's vulnerability-detection scripts (NSE 'vuln') against a host."
+permission = "intrusive"
+args = ["--script", "vuln", "-oN", "-"]
+timeout = 2400
+[operation.target]
+kind = "host"
+required = true
+
+[[operation]]
+id = "wpscan"
+tool = "wpscan"
+summary = "Scan a WordPress site for vulnerable plugins, themes and users."
+permission = "intrusive"
+args = ["--no-banner", "--format", "cli-no-color"]
+timeout = 1800
+[[operation.params]]
+name = "url_flag"
+flag = "--url"
+type = "string"
+required = true
+pattern = '^https?://[^\s]+$'
+description = "Target WordPress URL"
+
+[[operation]]
+id = "searchsploit"
+tool = "exploitdb"
+command = "searchsploit"
+summary = "Look up public exploits for a product/version (local Exploit-DB; no target contact)."
+permission = "passive"
+[[operation.params]]
+name = "term"
+type = "string"
+required = true
+description = "Product and version, e.g. 'vsftpd 2.3.4'"
+
+# ---------------------------------------------------------------- credential testing (high-impact: always asks)
+
+[[operation]]
+id = "netexec-smb"
+tool = "netexec"
+command = "nxc"
+summary = "SMB check / login test: host info, signing, and (with creds) share access."
+permission = "high_impact"
+args = ["smb"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-u"
+type = "string"
+required = false
+description = "Username to test (omit for an unauthenticated check)"
+[[operation.params]]
+name = "password"
+flag = "-p"
+type = "string"
+required = false
+description = "Password for the username above"
+[operation.target]
+kind = "host"
+required = true
+
+[[operation]]
+id = "netexec-ssh"
+tool = "netexec"
+command = "nxc"
+summary = "SSH login test with a username and password."
+permission = "high_impact"
+args = ["ssh"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-u"
+type = "string"
+required = true
+[[operation.params]]
+name = "password"
+flag = "-p"
+type = "string"
+required = true
+[operation.target]
+kind = "host"
+required = true
+
+# ---------------------------------------------------------------- sniffing
+# Packet capture needs CAP_NET_RAW over the physical interface, which a
+# rootless toolbox cannot get. These ops set host=true so the engine runs the
+# tool on the host via `flatpak-spawn --host`. One-time host setup required:
+#   sudo setcap cap_net_raw,cap_net_admin+eip /usr/bin/tcpdump /usr/bin/ettercap
+
+[[operation]]
+id = "wifi-sniff-passive"
+tool = "tcpdump"
+summary = "Passive capture of broadcast/discovery traffic on the local interface (safe, sends nothing)."
+permission = "low"
+host = true
+args = ["-l", "-nn", "-q"]
+timeout = 120
+[[operation.params]]
+name = "count"
+flag = "-c"
+type = "int"
+default = 100
+min = 1
+max = 100000
+description = "Stop after this many packets"
+[[operation.params]]
+name = "iface"
+flag = "-i"
+type = "string"
+required = true
+pattern = '^[a-zA-Z0-9]+$'
+description = "Capture interface (e.g. wlp0s20f3)"
+
+[[operation]]
+id = "mitm-sniff"
+tool = "ettercap"
+summary = "ARP-spoof a single host and sniff its traffic (interception; disrupts the target)."
+permission = "high_impact"
+host = true
+args = ["-T", "-q", "-M", "arp:remote"]
+timeout = 120
+[[operation.params]]
+name = "iface"
+flag = "-i"
+type = "string"
+required = true
+pattern = '^[a-zA-Z0-9]+$'
+description = "Capture interface (e.g. wlp0s20f3)"
+[[operation.params]]
+name = "gateway"
+type = "string"
+required = true
+pattern = '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+template = "/{}//"
+description = "The network gateway IP (the other MITM endpoint)"
+[operation.target]
+kind = "host"
+required = true
+template = "/{}//"
+
+[[operation]]
+id = "mitm-sniff-all"
+tool = "ettercap"
+summary = "ARP-spoof the WHOLE local segment and sniff all traffic (very disruptive)."
+permission = "high_impact"
+host = true
+args = ["-T", "-q", "-M", "arp:remote"]
+timeout = 120
+[[operation.params]]
+name = "iface"
+flag = "-i"
+type = "string"
+required = true
+pattern = '^[a-zA-Z0-9]+$'
+description = "Capture interface (e.g. wlp0s20f3)"
+[[operation.params]]
+name = "gateway"
+type = "string"
+required = true
+pattern = '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+template = "/{}//"
+description = "The network gateway IP (first MITM endpoint)"
+[[operation.params]]
+name = "allhosts"
+type = "string"
+default = "///"
+pattern = '^///$'
+description = "Second endpoint: // means every host on the segment"
+
+[[operation]]
+id = "device-connections"
+tool = "tcpdump"
+summary = "Capture one device's DNS lookups and HTTPS destinations (which servers it talks to)."
+permission = "low"
+host = true
+args = ["-l", "-nn"]
+timeout = 60
+[[operation.params]]
+name = "iface"
+flag = "-i"
+type = "string"
+required = true
+pattern = '^[a-zA-Z0-9]+$'
+description = "Capture interface (e.g. wlp0s20f3)"
+[[operation.params]]
+name = "count"
+flag = "-c"
+type = "int"
+default = 400
+min = 1
+max = 100000
+description = "Stop after this many packets"
+[operation.target]
+kind = "host"
+required = true
+template = "host {} and (port 53 or port 443)"
+
+# ---------------------------------------------------------------- brute force
+# Password guessing with hydra. Runs in the toolbox (only sends auth attempts —
+# no capture needed). high_impact: active, noisy, can lock accounts. The
+# service is baked into each op via the `service://host` target form, since
+# hydra wants the service after the target.
+
+[[operation]]
+id = "hydra-ssh"
+tool = "hydra"
+summary = "Password brute-force against SSH (tries a username with a password list)."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-l"
+type = "string"
+required = true
+pattern = '^[A-Za-z0-9._-]+$'
+description = "Username to try (e.g. root, admin, pi)"
+[[operation.params]]
+name = "wordlist"
+flag = "-P"
+type = "string"
+default = "/usr/share/seclists/Passwords/Common-Credentials/darkweb2017_top-100.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Password list file (default: 99 common passwords)"
+[operation.target]
+kind = "host"
+required = true
+template = "ssh://{}"
+
+[[operation]]
+id = "hydra-ftp"
+tool = "hydra"
+summary = "Password brute-force against FTP."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-l"
+type = "string"
+required = true
+pattern = '^[A-Za-z0-9._-]+$'
+description = "Username to try"
+[[operation.params]]
+name = "wordlist"
+flag = "-P"
+type = "string"
+default = "/usr/share/seclists/Passwords/Common-Credentials/darkweb2017_top-100.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Password list file (default: 99 common passwords)"
+[operation.target]
+kind = "host"
+required = true
+template = "ftp://{}"
+
+[[operation]]
+id = "hydra-telnet"
+tool = "hydra"
+summary = "Password brute-force against Telnet (common on IoT devices / routers)."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-l"
+type = "string"
+required = true
+pattern = '^[A-Za-z0-9._-]+$'
+description = "Username to try"
+[[operation.params]]
+name = "wordlist"
+flag = "-P"
+type = "string"
+default = "/usr/share/seclists/Passwords/Common-Credentials/darkweb2017_top-100.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Password list file (default: 99 common passwords)"
+[operation.target]
+kind = "host"
+required = true
+template = "telnet://{}"
+
+[[operation]]
+id = "hydra-rdp"
+tool = "hydra"
+summary = "Password brute-force against Windows Remote Desktop (RDP)."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-l"
+type = "string"
+required = true
+pattern = '^[A-Za-z0-9._-]+$'
+description = "Username to try"
+[[operation.params]]
+name = "wordlist"
+flag = "-P"
+type = "string"
+default = "/usr/share/seclists/Passwords/Common-Credentials/darkweb2017_top-100.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Password list file (default: 99 common passwords)"
+[operation.target]
+kind = "host"
+required = true
+template = "rdp://{}"
+
+[[operation]]
+id = "hydra-smb"
+tool = "hydra"
+summary = "Password brute-force against Windows/SMB file sharing logins."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-l"
+type = "string"
+required = true
+pattern = '^[A-Za-z0-9._-]+$'
+description = "Username to try"
+[[operation.params]]
+name = "wordlist"
+flag = "-P"
+type = "string"
+default = "/usr/share/seclists/Passwords/Common-Credentials/darkweb2017_top-100.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Password list file (default: 99 common passwords)"
+[operation.target]
+kind = "host"
+required = true
+template = "smb://{}"
+
+[[operation]]
+id = "hydra-mysql"
+tool = "hydra"
+summary = "Password brute-force against MySQL database logins."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "user"
+flag = "-l"
+type = "string"
+required = true
+pattern = '^[A-Za-z0-9._-]+$'
+description = "Username to try"
+[[operation.params]]
+name = "wordlist"
+flag = "-P"
+type = "string"
+default = "/usr/share/seclists/Passwords/Common-Credentials/darkweb2017_top-100.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Password list file (default: 99 common passwords)"
+[operation.target]
+kind = "host"
+required = true
+template = "mysql://{}"
+
+# ---------------------------------------------------------------- web attack
+[[operation]]
+id = "sqlmap-test"
+tool = "sqlmap"
+summary = "Test a URL for SQL injection (automated, read-only detection)."
+permission = "intrusive"
+args = ["--batch", "--disable-coloring", "--level", "1", "--risk", "1"]
+timeout = 1200
+[operation.target]
+kind = "url"
+flag = "-u"
+required = true
+
+# ---------------------------------------------------------------- password spray
+[[operation]]
+id = "spray-ssh"
+tool = "hydra"
+summary = "Password spray against SSH: try ONE password across many usernames (lockout-safer)."
+permission = "high_impact"
+args = ["-I", "-t", "4"]
+timeout = 900
+[[operation.params]]
+name = "password"
+flag = "-p"
+type = "string"
+required = true
+description = "The single password to try for every user"
+[[operation.params]]
+name = "userlist"
+flag = "-L"
+type = "string"
+default = "/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Username list file (default: 17 common usernames)"
+[operation.target]
+kind = "host"
+required = true
+template = "ssh://{}"
+
+[[operation]]
+id = "spray-smb"
+tool = "hydra"
+summary = "Password spray against SMB (Windows/AD): try ONE password across many usernames (lockout-safer)."
+permission = "high_impact"
+args = ["-I", "-t", "4"]
+timeout = 900
+[[operation.params]]
+name = "password"
+flag = "-p"
+type = "string"
+required = true
+description = "The single password to try for every user"
+[[operation.params]]
+name = "userlist"
+flag = "-L"
+type = "string"
+default = "/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "Username list file (default: 17 common usernames)"
+[operation.target]
+kind = "host"
+required = true
+template = "smb://{}"
+
+# ---------------------------------------------------------------- default creds
+[[operation]]
+id = "defaultcreds-ssh"
+tool = "hydra"
+summary = "Check SSH for known default/factory credentials (user:pass combo list)."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "combolist"
+flag = "-C"
+type = "string"
+default = "/usr/share/seclists/Passwords/Default-Credentials/ssh-betterdefaultpasslist.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "login:password combo list (default: known factory creds)"
+[operation.target]
+kind = "host"
+required = true
+template = "ssh://{}"
+
+[[operation]]
+id = "defaultcreds-telnet"
+tool = "hydra"
+summary = "Check Telnet (IoT/routers) for known default/factory credentials (user:pass combo list)."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "combolist"
+flag = "-C"
+type = "string"
+default = "/usr/share/seclists/Passwords/Default-Credentials/telnet-betterdefaultpasslist.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "login:password combo list (default: known factory creds)"
+[operation.target]
+kind = "host"
+required = true
+template = "telnet://{}"
+
+[[operation]]
+id = "defaultcreds-ftp"
+tool = "hydra"
+summary = "Check FTP for known default/factory credentials (user:pass combo list)."
+permission = "high_impact"
+args = ["-I", "-t", "4", "-f"]
+timeout = 900
+[[operation.params]]
+name = "combolist"
+flag = "-C"
+type = "string"
+default = "/usr/share/seclists/Passwords/Default-Credentials/ftp-betterdefaultpasslist.txt"
+pattern = '^[A-Za-z0-9._/-]+$'
+description = "login:password combo list (default: known factory creds)"
+[operation.target]
+kind = "host"
+required = true
+template = "ftp://{}"
+
+# ---------------------------------------------------------------- tls decryption
+# HTTPS decryption via mitmproxy running as an explicit proxy (runs in the
+# toolbox — no root/ARP needed). The target device must point its WiFi proxy at
+# this host and trust the mitmproxy CA (~/.mitmproxy/mitmproxy-ca-cert.pem).
+# Only decrypts apps/sites that do NOT pin their certificate.
+[[operation]]
+id = "mitm-proxy-decrypt"
+tool = "mitmproxy"
+command = "mitmdump"
+unpackaged = true
+summary = "Decrypt HTTPS via an explicit proxy (device must set proxy + trust the CA; no pinning)."
+permission = "high_impact"
+args = ["--flow-detail", "1", "--set", "termlog_verbosity=warn"]
+timeout = 120
+[[operation.params]]
+name = "port"
+flag = "--listen-port"
+type = "int"
+default = 8080
+min = 1
+max = 65535
+description = "Proxy port the device connects to"
